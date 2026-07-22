@@ -197,6 +197,51 @@ input:disabled {
   white-space: pre-wrap;
 }
 
+.progress {
+  height: 8px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  background: var(--ok);
+}
+
+.job-logs {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.job-logs summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.job-logs ol {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.job-logs li {
+  overflow-wrap: anywhere;
+}
+
+.job-logs time,
+.log-level {
+  margin-right: 8px;
+}
+
+.log-level {
+  font-weight: 700;
+}
+
 .diagnostics {
   display: grid;
   grid-template-columns: max-content 1fr;

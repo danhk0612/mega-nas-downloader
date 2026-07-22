@@ -39,19 +39,10 @@ git clone https://github.com/danhk0612/mega-nas-downloader.git
 cd mega-nas-downloader
 ```
 
-If `git` is not installed, install Git from DSM Package Center first. A downloaded ZIP also works, but Synology may not include `unzip` by default.
-
 If the repository already exists:
 
 ```bash
 cd /volume1/docker/mega-nas-downloader
-git pull
-```
-
-If `git pull` is blocked by local edits to `compose.yml`, stash the local compose edit before pulling:
-
-```bash
-git stash push -m "local compose before pull" compose.yml
 git pull
 ```
 
@@ -70,20 +61,11 @@ environment:
   PGID: 100
 ```
 
-Port `3010` is used to avoid conflicts with other local services that may already use port `3000`.
-
-If the mounted host directory was created by another user, fix ownership before starting:
-
-```bash
-sudo chown -R 1026:100 /volume1/docker/mega-downloader
-sudo chmod -R u+rwX,g+rwX /volume1/docker/mega-downloader
-```
-
 ## 4. Build And Start
 
 ```bash
 cd /volume1/docker/mega-nas-downloader
-sudo docker compose up -d --build --force-recreate
+sudo docker compose up -d --build
 ```
 
 Check container status:
@@ -95,15 +77,15 @@ sudo docker compose ps
 ## 5. Check Logs
 
 ```bash
-sudo docker compose logs --tail=150 mega-downloader
+sudo docker compose logs --tail=100 mega-downloader
 ```
 
 Useful lines to look for:
 
-- `mega-downloader starting as 1026:100`
-- Download directory is writable
-- Data directory is writable
-- `mega-nas-downloader listening on :3000`
+- Python server started on port `3000`
+- No permission error for `/downloads`
+- No permission error for `/data`
+- No MEGAcmd install error during build
 
 ## 6. Check Health
 
@@ -118,16 +100,8 @@ Expected result:
 
 - `/health` returns `200 OK`
 - `/api/status` shows `megacmd.ok: true`
-- `/api/status` shows `paths.download_dir_writable.ok: true`
-- `/api/status` shows `paths.data_dir_writable.ok: true`
-
-Verified Synology result from the first NAS run:
-
-- Container status: `Up`, health check starting then ready
-- Port mapping: `0.0.0.0:3010->3000/tcp`
-- MEGAcmd version: `2.5.2.1`
-- Download and data paths writable
-- Free space reported from `/downloads`
+- `paths.download_dir_writable.ok: true`
+- `paths.data_dir_writable.ok: true`
 
 ## 7. Open Web UI
 
@@ -139,6 +113,8 @@ http://NAS_IP:3010
 
 At this stage, use only public MEGA file/folder links for testing.
 
+Use `http://` for direct access to port `3010`. If you open `https://NAS_IP:3010` directly, the app logs will show HTTP 400 errors because this container does not terminate TLS by itself.
+
 ## 8. Test One Download
 
 Use a small public MEGA test link first.
@@ -146,7 +122,7 @@ Use a small public MEGA test link first.
 After creating a job, check:
 
 ```bash
-sudo docker compose logs --tail=150 mega-downloader
+sudo docker compose logs --tail=100 mega-downloader
 ls -la /volume1/docker/mega-downloader/downloads
 ls -la /volume1/docker/mega-downloader/data
 ```
@@ -156,7 +132,8 @@ Current expected behavior:
 - Job is created in SQLite.
 - `mega-get` is executed.
 - Job becomes `completed` or `failed`.
-- Progress tracking is not implemented yet.
+- Completed jobs show `progress = 100`, downloaded bytes, and recent job logs.
+- Live transfer progress is not implemented yet.
 
 ## 9. Stop Or Restart
 
@@ -167,14 +144,13 @@ sudo docker compose down
 
 ## 10. Report Back
 
-Please send these outputs after the first download test:
+Please send these outputs after the first run:
 
 ```bash
-cd /volume1/docker/mega-nas-downloader
+id
 sudo docker compose ps
-sudo docker compose logs --tail=150 mega-downloader
-ls -la /volume1/docker/mega-downloader/downloads
-ls -la /volume1/docker/mega-downloader/data
+sudo docker compose logs --tail=100 mega-downloader
+curl -i http://127.0.0.1:3010/health
 curl -s http://127.0.0.1:3010/api/status
 ```
 

@@ -6,9 +6,9 @@ Assumptions:
 
 - Repository: `https://github.com/danhk0612/mega-nas-downloader.git`
 - Project path: `/volume1/docker/mega-nas-downloader`
-- Download path: `/volume1/download/mega`
+- Download path: `/volume1/docker/mega-downloader/downloads`
 - App data path: `/volume1/docker/mega-downloader/data`
-- Host port: `3000`
+- Host port: `3010`
 - DSM user UID/GID example: `PUID=1026`, `PGID=100`
 
 Adjust paths and IDs before running if your NAS uses different values.
@@ -17,7 +17,7 @@ Adjust paths and IDs before running if your NAS uses different values.
 
 ```bash
 mkdir -p /volume1/docker
-mkdir -p /volume1/download/mega
+mkdir -p /volume1/docker/mega-downloader/downloads
 mkdir -p /volume1/docker/mega-downloader/data
 ```
 
@@ -39,6 +39,8 @@ git clone https://github.com/danhk0612/mega-nas-downloader.git
 cd mega-nas-downloader
 ```
 
+If `git` is not installed, install Git from DSM Package Center first. A downloaded ZIP also works, but Synology may not include `unzip` by default.
+
 If the repository already exists:
 
 ```bash
@@ -52,14 +54,16 @@ Open `compose.yml` and verify:
 
 ```yaml
 ports:
-  - "3000:3000"
+  - "3010:3000"
 volumes:
-  - /volume1/download/mega:/downloads
+  - /volume1/docker/mega-downloader/downloads:/downloads
   - /volume1/docker/mega-downloader/data:/data
 environment:
   PUID: 1026
   PGID: 100
 ```
+
+Port `3010` is used to avoid conflicts with other local services that may already use port `3000`.
 
 ## 4. Build And Start
 
@@ -77,12 +81,12 @@ sudo docker compose ps
 ## 5. Check Logs
 
 ```bash
-sudo docker compose logs --tail=100 mega-downloader
+sudo docker compose logs --tail=150 mega-downloader
 ```
 
 Useful lines to look for:
 
-- Python server started on port `3000`
+- Python server started on container port `3000`
 - No permission error for `/downloads`
 - No permission error for `/data`
 - No MEGAcmd install error during build
@@ -92,8 +96,8 @@ Useful lines to look for:
 From the NAS terminal:
 
 ```bash
-curl -i http://127.0.0.1:3000/health
-curl -s http://127.0.0.1:3000/api/status
+curl -i http://127.0.0.1:3010/health
+curl -s http://127.0.0.1:3010/api/status
 ```
 
 Expected result:
@@ -108,7 +112,7 @@ Expected result:
 Open this from a browser on the same network:
 
 ```text
-http://NAS_IP:3000
+http://NAS_IP:3010
 ```
 
 At this stage, use only public MEGA file/folder links for testing.
@@ -120,8 +124,8 @@ Use a small public MEGA test link first.
 After creating a job, check:
 
 ```bash
-sudo docker compose logs --tail=100 mega-downloader
-ls -la /volume1/download/mega
+sudo docker compose logs --tail=150 mega-downloader
+ls -la /volume1/docker/mega-downloader/downloads
 ls -la /volume1/docker/mega-downloader/data
 ```
 
@@ -144,11 +148,12 @@ sudo docker compose down
 Please send these outputs after the first run:
 
 ```bash
-id
+cd /volume1/docker/mega-nas-downloader
+sed -n '1,160p' compose.yml
 sudo docker compose ps
-sudo docker compose logs --tail=100 mega-downloader
-curl -i http://127.0.0.1:3000/health
-curl -s http://127.0.0.1:3000/api/status
+sudo docker compose logs --tail=150 mega-downloader
+curl -i http://127.0.0.1:3010/health
+curl -s http://127.0.0.1:3010/api/status
 ```
 
 Do not paste MEGA links that include private keys unless they are intentionally public test links.

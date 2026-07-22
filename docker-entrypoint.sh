@@ -19,6 +19,12 @@ if ! id appuser >/dev/null 2>&1; then
 fi
 
 mkdir -p "$DOWNLOAD_DIR" "$DATA_DIR" "$TEMP_DIR"
-chown -R "$PUID:$PGID" "$DATA_DIR" "$TEMP_DIR"
+chown -R "$PUID:$PGID" "$DOWNLOAD_DIR" "$DATA_DIR"
+chmod -R u+rwX,g+rwX "$DOWNLOAD_DIR" "$DATA_DIR"
+
+echo "mega-downloader starting as ${PUID}:${PGID}"
+echo "download dir: $(ls -ld "$DOWNLOAD_DIR")"
+echo "data dir: $(ls -ld "$DATA_DIR")"
+echo "temp dir: $(ls -ld "$TEMP_DIR")"
 
 exec gosu "$PUID:$PGID" "$@"

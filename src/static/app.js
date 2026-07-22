@@ -57,6 +57,21 @@ function formatStatus(status) {
   return labels[status] || status;
 }
 
+function formatProgress(job) {
+  if (job.progress !== null && job.progress !== undefined) {
+    return `${Number(job.progress).toFixed(0)}%`;
+  }
+  if (job.status === "running") return "진행률 확인 중";
+  return "-";
+}
+
+function formatTransfer(job) {
+  const downloaded = formatBytes(job.downloaded_bytes);
+  const total = formatBytes(job.total_bytes);
+  if (job.downloaded_bytes === null && job.total_bytes === null) return "-";
+  return `${downloaded} / ${total}`;
+}
+
 function setDiagnostics(status) {
   const rows = [
     ["앱 버전", status.app.version],
@@ -90,18 +105,48 @@ function setJobs(jobs) {
           </div>
           <div class="job-meta">
             <span>${formatStatus(job.status)}</span>
+            <span>진행 ${formatProgress(job)}</span>
+            <span>용량 ${formatTransfer(job)}</span>
             <span>등록 ${formatDate(job.registered_at)}</span>
             <span>대상 ${escapeHtml(job.subfolder || "/")}</span>
           </div>
+          ${
+            job.progress !== null && job.progress !== undefined
+              ? `<div class="progress" aria-label="진행률"><span style="width: ${Math.max(0, Math.min(100, Number(job.progress)))}%"></span></div>`
+              : ""
+          }
           ${
             job.error_message
               ? `<p class="job-error">${escapeHtml(job.error_message)}</p>`
               : ""
           }
+          ${renderLogs(job.logs || [])}
         </article>
       `,
     )
     .join("");
+}
+
+function renderLogs(logs) {
+  if (!logs.length) return "";
+  return `
+    <details class="job-logs">
+      <summary>최근 로그 ${logs.length}개</summary>
+      <ol>
+        ${logs
+          .map(
+            (log) => `
+              <li>
+                <time>${formatDate(log.created_at)}</time>
+                <span class="log-level">${escapeHtml(log.level)}</span>
+                <span>${escapeHtml(log.message)}</span>
+              </li>
+            `,
+          )
+          .join("")}
+      </ol>
+    </details>
+  `;
 }
 
 function escapeHtml(value) {

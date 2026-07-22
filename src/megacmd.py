@@ -53,6 +53,7 @@ class MegaDownloader:
 
         target_dir = Path(row["target_dir"])
         target_dir.mkdir(parents=True, exist_ok=True)
+        before_files = snapshot_files(target_dir)
         command = ["mega-get", row["mega_url"], str(target_dir)]
 
         try:
@@ -78,19 +79,26 @@ class MegaDownloader:
             exit_code = process.wait()
             with self.lock:
                 if exit_code == 0:
+                    changed_files = diff_files(before_files, snapshot_files(target_dir))
+                    downloaded_bytes = sum(item["size"] for item in changed_files)
                     self.db.execute(
                         """
                         UPDATE jobs
                            SET status = 'completed',
                                completed_at = ?,
                                process_id = NULL,
-                               error_message = NULL
+                               error_message = NULL,
+                               progress = 100,
+                               downloaded_bytes = ?,
+                               total_bytes = ?
                          WHERE id = ?
                         """,
-                        (utc_now(), job_id),
+                        (utc_now(), downloaded_bytes, downloaded_bytes, job_id),
                     )
                     self.db.commit()
                     add_log(self.db, job_id, "info", "Download completed.")
+                    if changed_files:
+                        add_log(self.db, job_id, "info", format_changed_files(changed_files))
                 else:
                     message = "\n".join(recent_output[-5:]) or f"mega-get exited with code {exit_code}"
                     self.db.execute(
@@ -126,3 +134,37 @@ class MegaDownloader:
             )
             self.db.commit()
             add_log(self.db, job_id, "error", message)
+
+
+def snapshot_files(directory: Path) -> dict[Path, tuple[int, int]]:
+    if not directory.exists():
+        return {}
+    files: dict[Path, tuple[int, int]] = {}
+    for path in directory.rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        files[path.relative_to(directory)] = (stat.st_size, stat.st_mtime_ns)
+    return files
+
+
+def diff_files(
+    before: dict[Path, tuple[int, int]],
+    after: dict[Path, tuple[int, int]],
+) -> list[dict[str, int | str]]:
+    changed: list[dict[str, int | str]] = []
+    for path, (size, mtime_ns) in after.items():
+        if before.get(path) != (size, mtime_ns):
+            changed.append({"path": path.as_posix(), "size": size})
+    return sorted(changed, key=lambda item: str(item["path"]))
+
+
+def format_changed_files(files: list[dict[str, int | str]]) -> str:
+    visible = files[:10]
+    names = ", ".join(str(item["path"]) for item in visible)
+    remaining = len(files) - len(visible)
+    suffix = f" and {remaining} more" if remaining > 0 else ""
+    return f"Downloaded files: {names}{suffix}"

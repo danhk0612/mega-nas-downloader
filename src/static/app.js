@@ -6,6 +6,29 @@ async function loadStatus() {
   return response.json();
 }
 
+async function loadJobs() {
+  const response = await fetch("/api/jobs");
+  if (!response.ok) {
+    throw new Error(`jobs request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+async function createJob(payload) {
+  const response = await fetch("/api/jobs", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error(body.error?.message || `job create failed: ${response.status}`);
+  }
+  return body;
+}
+
 function formatBytes(value) {
   if (value === null || value === undefined) return "확인 불가";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -16,6 +39,22 @@ function formatBytes(value) {
     unit += 1;
   }
   return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString();
+}
+
+function formatStatus(status) {
+  const labels = {
+    pending: "대기",
+    running: "다운로드 중",
+    completed: "완료",
+    failed: "실패",
+    canceled: "취소됨",
+  };
+  return labels[status] || status;
 }
 
 function setDiagnostics(status) {
@@ -35,6 +74,45 @@ function setDiagnostics(status) {
     .join("");
 }
 
+function setJobs(jobs) {
+  const target = document.querySelector("#jobs");
+  if (!jobs.length) {
+    target.innerHTML = '<p class="empty">등록된 작업이 없습니다.</p>';
+    return;
+  }
+  target.innerHTML = jobs
+    .map(
+      (job) => `
+        <article class="job-card">
+          <div>
+            <strong>${escapeHtml(job.name || job.mega_url_masked || `작업 #${job.id}`)}</strong>
+            <span>${escapeHtml(job.mega_url_masked || "")}</span>
+          </div>
+          <div class="job-meta">
+            <span>${formatStatus(job.status)}</span>
+            <span>등록 ${formatDate(job.registered_at)}</span>
+            <span>대상 ${escapeHtml(job.subfolder || "/")}</span>
+          </div>
+          ${
+            job.error_message
+              ? `<p class="job-error">${escapeHtml(job.error_message)}</p>`
+              : ""
+          }
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function setSummary(status) {
   document.querySelector("#runningCount").textContent = status.jobs.running;
   document.querySelector("#pendingCount").textContent = status.jobs.pending;
@@ -46,7 +124,9 @@ async function refresh() {
   const badge = document.querySelector("#healthBadge");
   try {
     const status = await loadStatus();
+    const { jobs } = await loadJobs();
     setSummary(status);
+    setJobs(jobs);
     setDiagnostics(status);
     badge.textContent = status.megacmd.ok ? "정상" : "경고";
     badge.className = `badge ${status.megacmd.ok ? "ok" : "bad"}`;
@@ -55,6 +135,24 @@ async function refresh() {
     badge.className = "badge bad";
   }
 }
+
+document.querySelector("#downloadForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const message = document.querySelector("#formMessage");
+  message.textContent = "등록 중...";
+  try {
+    await createJob({
+      mega_url: document.querySelector("#megaUrl").value,
+      name: document.querySelector("#jobName").value,
+      subfolder: document.querySelector("#subfolder").value,
+    });
+    event.target.reset();
+    message.textContent = "작업을 등록했습니다.";
+    await refresh();
+  } catch (error) {
+    message.textContent = error.message;
+  }
+});
 
 refresh();
 setInterval(refresh, 5000);

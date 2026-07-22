@@ -14,7 +14,7 @@ Recommended license: **MIT License**. This project is a small personal utility a
 
 ## Status
 
-`0.1.0-alpha.1` is the project initialization stage.
+`0.1.0-alpha.2` includes the initial single-download job flow.
 
 Implemented:
 
@@ -25,15 +25,19 @@ Implemented:
 - Basic responsive web UI
 - MEGAcmd availability check
 - Download and data volume write checks
+- MEGA public file/folder link validation
+- SQLite job storage
+- Download job creation API and UI form
+- Basic `mega-get` execution
+- Completed/failed status persistence
+- Basic per-job log storage
 
 Not implemented yet:
 
-- Download job creation
-- MEGA link validation
-- SQLite job storage
 - Progress tracking
 - Queue, cancel, retry
 - Authentication
+- Fully enforced duplicate policies beyond the default `rename` behavior
 
 ## Quick Start
 
@@ -96,7 +100,7 @@ services:
 | `RETRY_ON_STARTUP` | `false` | Planned startup behavior for interrupted jobs |
 | `MAX_RETRY_COUNT` | `3` | Planned retry limit |
 | `POLL_INTERVAL_MS` | `1000` | Planned UI/API polling interval |
-| `DEFAULT_DUPLICATE_POLICY` | `rename` | Planned duplicate file behavior |
+| `DEFAULT_DUPLICATE_POLICY` | `rename` | Duplicate file behavior. Only `rename` is implemented in the current stage |
 | `LOG_LEVEL` | `info` | Application log level |
 | `TZ` | `Asia/Seoul` | Container timezone |
 | `PUID` | `1026` | Runtime user id |

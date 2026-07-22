@@ -4,7 +4,7 @@ services:
     container_name: mega-downloader
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3010:3000"
     environment:
       TZ: Asia/Seoul
       APP_PORT: 3000
@@ -22,5 +22,5 @@ services:
       PGID: 100
       UMASK: "022"
     volumes:
-      - /volume1/download/mega:/downloads
+      - /volume1/docker/mega-downloader/downloads:/downloads
       - /volume1/docker/mega-downloader/data:/data

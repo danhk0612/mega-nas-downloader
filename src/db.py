@@ -91,7 +91,7 @@ def add_log(db: sqlite3.Connection, job_id: int, level: str, message: str) -> No
     db.commit()
 
 
-def list_jobs(db: sqlite3.Connection) -> list[dict[str, Any]]:
+def list_jobs(db: sqlite3.Connection, include_logs: bool = False) -> list[dict[str, Any]]:
     rows = db.execute(
         """
         SELECT *
@@ -99,12 +99,35 @@ def list_jobs(db: sqlite3.Connection) -> list[dict[str, Any]]:
          ORDER BY registered_at DESC, id DESC
         """
     ).fetchall()
-    return [row_to_dict(row) for row in rows]
+    jobs = [row_to_dict(row) for row in rows]
+    if include_logs:
+        for job in jobs:
+            job["logs"] = list_job_logs(db, int(job["id"]))
+    return jobs
 
 
-def get_job(db: sqlite3.Connection, job_id: int) -> dict[str, Any] | None:
+def get_job(db: sqlite3.Connection, job_id: int, include_logs: bool = False) -> dict[str, Any] | None:
     row = db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
-    return row_to_dict(row) if row else None
+    if row is None:
+        return None
+    job = row_to_dict(row)
+    if include_logs:
+        job["logs"] = list_job_logs(db, job_id)
+    return job
+
+
+def list_job_logs(db: sqlite3.Connection, job_id: int, limit: int = 20) -> list[dict[str, Any]]:
+    rows = db.execute(
+        """
+        SELECT id, created_at, level, message
+          FROM job_logs
+         WHERE job_id = ?
+         ORDER BY id DESC
+         LIMIT ?
+        """,
+        (job_id, limit),
+    ).fetchall()
+    return [row_to_dict(row) for row in reversed(rows)]
 
 
 def job_counts(db: sqlite3.Connection) -> dict[str, int]:

@@ -35,6 +35,7 @@ class Config:
     default_duplicate_policy: str
     log_level: str
     timezone: str
+    database_path: str
 
 
 def load_config() -> Config:
@@ -51,4 +52,5 @@ def load_config() -> Config:
         default_duplicate_policy=os.environ.get("DEFAULT_DUPLICATE_POLICY", "rename"),
         log_level=os.environ.get("LOG_LEVEL", "info"),
         timezone=os.environ.get("TZ", "Asia/Seoul"),
+        database_path=os.path.join(os.environ.get("DATA_DIR", "/data"), "app.sqlite3"),
     )

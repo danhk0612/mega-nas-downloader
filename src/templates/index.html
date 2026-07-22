@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEGA NAS Downloader</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Personal NAS Tool</p>
+          <h1>MEGA NAS Downloader</h1>
+        </div>
+        <div id="healthBadge" class="badge">확인 중</div>
+      </header>
+
+      <section class="summary-grid" aria-label="상태 요약">
+        <article>
+          <span>다운로드 중</span>
+          <strong id="runningCount">0</strong>
+        </article>
+        <article>
+          <span>대기</span>
+          <strong id="pendingCount">0</strong>
+        </article>
+        <article>
+          <span>완료</span>
+          <strong id="completedCount">0</strong>
+        </article>
+        <article>
+          <span>실패</span>
+          <strong id="failedCount">0</strong>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2>새 다운로드</h2>
+        <form class="download-form">
+          <label>
+            MEGA 공개 링크
+            <input type="url" placeholder="https://mega.nz/file/..." disabled />
+          </label>
+          <label>
+            작업 이름
+            <input type="text" placeholder="다음 단계에서 활성화" disabled />
+          </label>
+          <button type="button" disabled>등록 준비 중</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>시스템 진단</h2>
+        <dl id="diagnostics" class="diagnostics"></dl>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

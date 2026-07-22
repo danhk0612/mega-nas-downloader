@@ -14,7 +14,7 @@ Recommended license: **MIT License**. This project is a small personal utility a
 
 ## Status
 
-`0.1.0-alpha.2` includes the initial single-download job flow.
+`0.1.0-alpha.3` includes the initial single-download job flow plus completed-job file summaries.
 
 Implemented:
 
@@ -31,10 +31,12 @@ Implemented:
 - Basic `mega-get` execution
 - Completed/failed status persistence
 - Basic per-job log storage
+- Completed job file/size summary
+- Recent job logs in the web UI
 
 Not implemented yet:
 
-- Progress tracking
+- Live transfer progress tracking
 - Queue, cancel, retry
 - Authentication
 - Fully enforced duplicate policies beyond the default `rename` behavior
@@ -64,7 +66,7 @@ curl http://localhost:3010/health
 
 ## Synology Compose Example
 
-The default `compose.yml` is tuned for Synology first-run testing and maps the app to host port `3010` to avoid conflicts with existing services on port `3000`.
+Edit the host paths in `compose.yml` before running in Synology Container Manager.
 
 ```yaml
 services:
@@ -86,8 +88,6 @@ services:
       - /volume1/docker/mega-downloader/downloads:/downloads
       - /volume1/docker/mega-downloader/data:/data
 ```
-
-First-run guide: [`docs/synology-first-run.md`](docs/synology-first-run.md)
 
 ## Environment Variables
 

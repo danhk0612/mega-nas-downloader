@@ -1,0 +1,106 @@
+from __future__ import annotations
+
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def connect(database_path: str) -> sqlite3.Connection:
+    Path(database_path).parent.mkdir(parents=True, exist_ok=True)
+    db = sqlite3.connect(database_path, check_same_thread=False)
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA journal_mode=WAL")
+    db.execute("PRAGMA foreign_keys=ON")
+    return db
+
+
+def init_db(db: sqlite3.Connection) -> None:
+    db.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            mega_url TEXT NOT NULL,
+            mega_url_masked TEXT NOT NULL,
+            subfolder TEXT NOT NULL DEFAULT '',
+            target_dir TEXT NOT NULL,
+            duplicate_policy TEXT NOT NULL,
+            status TEXT NOT NULL,
+            progress REAL,
+            downloaded_bytes INTEGER,
+            total_bytes INTEGER,
+            speed_bytes_per_sec INTEGER,
+            eta_seconds INTEGER,
+            registered_at TEXT NOT NULL,
+            started_at TEXT,
+            completed_at TEXT,
+            error_message TEXT,
+            process_id INTEGER,
+            retry_count INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS job_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL,
+            level TEXT NOT NULL,
+            message TEXT NOT NULL
+        );
+        """
+    )
+    db.execute(
+        """
+        UPDATE jobs
+           SET status = 'failed',
+               completed_at = ?,
+               error_message = 'Application restarted while this job was running.',
+               process_id = NULL
+         WHERE status = 'running'
+        """,
+        (utc_now(),),
+    )
+    db.commit()
+
+
+def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    return {key: row[key] for key in row.keys()}
+
+
+def add_log(db: sqlite3.Connection, job_id: int, level: str, message: str) -> None:
+    db.execute(
+        "INSERT INTO job_logs (job_id, created_at, level, message) VALUES (?, ?, ?, ?)",
+        (job_id, utc_now(), level, message),
+    )
+    db.commit()
+
+
+def list_jobs(db: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = db.execute(
+        """
+        SELECT *
+          FROM jobs
+         ORDER BY registered_at DESC, id DESC
+        """
+    ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def get_job(db: sqlite3.Connection, job_id: int) -> dict[str, Any] | None:
+    row = db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    return row_to_dict(row) if row else None
+
+
+def job_counts(db: sqlite3.Connection) -> dict[str, int]:
+    rows = db.execute("SELECT status, COUNT(*) AS count FROM jobs GROUP BY status").fetchall()
+    counts = {row["status"]: row["count"] for row in rows}
+    return {
+        "running": counts.get("running", 0),
+        "pending": counts.get("pending", 0),
+        "completed": counts.get("completed", 0),
+        "failed": counts.get("failed", 0),
+    }

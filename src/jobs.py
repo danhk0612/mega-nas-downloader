@@ -19,11 +19,11 @@ class JobService:
 
     def list_jobs(self) -> list[dict[str, Any]]:
         with self.lock:
-            return list_jobs(self.db)
+            return list_jobs(self.db, include_logs=True)
 
     def get_job(self, job_id: int) -> dict[str, Any] | None:
         with self.lock:
-            return get_job(self.db, job_id)
+            return get_job(self.db, job_id, include_logs=True)
 
     def create_job(self, payload: dict[str, Any]) -> dict[str, Any]:
         mega_url = validate_public_mega_url(str(payload.get("mega_url", "")))

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -11,8 +12,19 @@ def utc_now() -> str:
 
 
 def connect(database_path: str) -> sqlite3.Connection:
-    Path(database_path).parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(database_path, check_same_thread=False)
+    parent = Path(database_path).parent
+    parent.mkdir(parents=True, exist_ok=True)
+    try:
+        db = sqlite3.connect(database_path, check_same_thread=False)
+    except sqlite3.OperationalError as exc:
+        stat = parent.stat()
+        details = (
+            f"unable to open SQLite database at {database_path}; "
+            f"parent={parent}, mode={oct(stat.st_mode & 0o777)}, "
+            f"uid={stat.st_uid}, gid={stat.st_gid}, "
+            f"process_uid={os.getuid()}, process_gid={os.getgid()}"
+        )
+        raise sqlite3.OperationalError(details) from exc
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("PRAGMA foreign_keys=ON")

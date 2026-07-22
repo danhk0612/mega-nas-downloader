@@ -37,17 +37,27 @@
 
       <section class="panel">
         <h2>새 다운로드</h2>
-        <form class="download-form">
+        <form id="downloadForm" class="download-form">
           <label>
             MEGA 공개 링크
-            <input type="url" placeholder="https://mega.nz/file/..." disabled />
+            <input id="megaUrl" type="url" placeholder="https://mega.nz/file/..." required />
           </label>
           <label>
             작업 이름
-            <input type="text" placeholder="다음 단계에서 활성화" disabled />
+            <input id="jobName" type="text" placeholder="선택 사항" />
           </label>
-          <button type="button" disabled>등록 준비 중</button>
+          <label>
+            하위 폴더
+            <input id="subfolder" type="text" placeholder="선택 사항" />
+          </label>
+          <button type="submit">등록</button>
         </form>
+        <p id="formMessage" class="form-message" role="status"></p>
+      </section>
+
+      <section class="panel">
+        <h2>작업 목록</h2>
+        <div id="jobs" class="jobs-list"></div>
       </section>
 
       <section class="panel">

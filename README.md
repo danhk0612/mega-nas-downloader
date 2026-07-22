@@ -53,18 +53,18 @@ docker compose up -d --build
 Open:
 
 ```text
-http://localhost:3000
+http://localhost:3010
 ```
 
 Health check:
 
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:3010/health
 ```
 
 ## Synology Compose Example
 
-Edit the host paths in `compose.yml` before running in Synology Container Manager.
+The default `compose.yml` is tuned for Synology first-run testing and maps the app to host port `3010` to avoid conflicts with existing services on port `3000`.
 
 ```yaml
 services:
@@ -73,7 +73,7 @@ services:
     container_name: mega-downloader
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3010:3000"
     environment:
       TZ: Asia/Seoul
       DOWNLOAD_DIR: /downloads
@@ -83,9 +83,11 @@ services:
       PGID: 100
       UMASK: "022"
     volumes:
-      - /volume1/download/mega:/downloads
+      - /volume1/docker/mega-downloader/downloads:/downloads
       - /volume1/docker/mega-downloader/data:/data
 ```
+
+First-run guide: [`docs/synology-first-run.md`](docs/synology-first-run.md)
 
 ## Environment Variables
 

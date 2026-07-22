@@ -48,6 +48,13 @@ cd /volume1/docker/mega-nas-downloader
 git pull
 ```
 
+If `git pull` is blocked by local edits to `compose.yml`, stash the local compose edit before pulling:
+
+```bash
+git stash push -m "local compose before pull" compose.yml
+git pull
+```
+
 ## 3. Review Compose Settings
 
 Open `compose.yml` and verify:
@@ -65,11 +72,18 @@ environment:
 
 Port `3010` is used to avoid conflicts with other local services that may already use port `3000`.
 
+If the mounted host directory was created by another user, fix ownership before starting:
+
+```bash
+sudo chown -R 1026:100 /volume1/docker/mega-downloader
+sudo chmod -R u+rwX,g+rwX /volume1/docker/mega-downloader
+```
+
 ## 4. Build And Start
 
 ```bash
 cd /volume1/docker/mega-nas-downloader
-sudo docker compose up -d --build
+sudo docker compose up -d --build --force-recreate
 ```
 
 Check container status:
@@ -86,10 +100,10 @@ sudo docker compose logs --tail=150 mega-downloader
 
 Useful lines to look for:
 
-- Python server started on container port `3000`
-- No permission error for `/downloads`
-- No permission error for `/data`
-- No MEGAcmd install error during build
+- `mega-downloader starting as 1026:100`
+- Download directory is writable
+- Data directory is writable
+- `mega-nas-downloader listening on :3000`
 
 ## 6. Check Health
 
@@ -103,9 +117,17 @@ curl -s http://127.0.0.1:3010/api/status
 Expected result:
 
 - `/health` returns `200 OK`
-- `/api/status` shows `megacmd.available: true`
-- `downloads.writable: true`
-- `data.writable: true`
+- `/api/status` shows `megacmd.ok: true`
+- `/api/status` shows `paths.download_dir_writable.ok: true`
+- `/api/status` shows `paths.data_dir_writable.ok: true`
+
+Verified Synology result from the first NAS run:
+
+- Container status: `Up`, health check starting then ready
+- Port mapping: `0.0.0.0:3010->3000/tcp`
+- MEGAcmd version: `2.5.2.1`
+- Download and data paths writable
+- Free space reported from `/downloads`
 
 ## 7. Open Web UI
 
@@ -145,14 +167,14 @@ sudo docker compose down
 
 ## 10. Report Back
 
-Please send these outputs after the first run:
+Please send these outputs after the first download test:
 
 ```bash
 cd /volume1/docker/mega-nas-downloader
-sed -n '1,160p' compose.yml
 sudo docker compose ps
 sudo docker compose logs --tail=150 mega-downloader
-curl -i http://127.0.0.1:3010/health
+ls -la /volume1/docker/mega-downloader/downloads
+ls -la /volume1/docker/mega-downloader/data
 curl -s http://127.0.0.1:3010/api/status
 ```
 

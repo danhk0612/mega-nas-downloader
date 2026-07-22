@@ -1,0 +1,26 @@
+services:
+  mega-downloader:
+    build: .
+    container_name: mega-downloader
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      TZ: Asia/Seoul
+      APP_PORT: 3000
+      DOWNLOAD_DIR: /downloads
+      DATA_DIR: /data
+      TEMP_DIR: /data/temp
+      MAX_CONCURRENT_DOWNLOADS: 2
+      AUTO_START_PENDING: "true"
+      RETRY_ON_STARTUP: "false"
+      MAX_RETRY_COUNT: 3
+      POLL_INTERVAL_MS: 1000
+      DEFAULT_DUPLICATE_POLICY: rename
+      LOG_LEVEL: info
+      PUID: 1026
+      PGID: 100
+      UMASK: "022"
+    volumes:
+      - /volume1/download/mega:/downloads
+      - /volume1/docker/mega-downloader/data:/data

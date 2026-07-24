@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import re
 from typing import Any
 
 from .config import Config
 from .db import get_job, list_jobs, utc_now
 from .megacmd import MegaDownloader, mask_mega_url, validate_public_mega_url
 from .paths import resolve_download_target
+
+MEGA_URL_RE = re.compile(r"https://mega\.nz/[^\s<>()\[\]{}\"']+", re.IGNORECASE)
 
 
 class JobService:
@@ -119,10 +122,11 @@ def parse_mega_urls(payload: dict[str, Any]) -> list[str]:
     values: list[str] = []
     raw_many = payload.get("mega_urls")
     if isinstance(raw_many, list):
-        values.extend(str(item).strip() for item in raw_many)
+        for item in raw_many:
+            values.extend(extract_mega_url_candidates(str(item)))
 
     raw_one = str(payload.get("mega_url", ""))
-    values.extend(line.strip() for line in raw_one.splitlines())
+    values.extend(extract_mega_url_candidates(raw_one))
     values = [value for value in values if value]
     if not values:
         raise ValueError("At least one MEGA URL is required.")
@@ -138,3 +142,10 @@ def parse_mega_urls(payload: dict[str, Any]) -> list[str]:
             seen.add(url)
             urls.append(url)
     return urls
+
+
+def extract_mega_url_candidates(value: str) -> list[str]:
+    matches = MEGA_URL_RE.findall(value)
+    if matches:
+        return matches
+    return [line.strip() for line in value.splitlines()]

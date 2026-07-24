@@ -195,7 +195,7 @@ document.querySelector("#downloadForm").addEventListener("submit", async (event)
     });
     event.target.reset();
     message.textContent = `${result.created_count || 1}개 작업을 등록했습니다.`;
-    await refresh();
+    refresh().catch(() => {});
   } catch (error) {
     message.textContent = error.message;
   }

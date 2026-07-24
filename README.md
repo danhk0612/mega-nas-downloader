@@ -14,7 +14,7 @@ Recommended license: **MIT License**. This project is a small personal utility a
 
 ## Status
 
-`0.1.0-alpha.4` includes bulk job registration, enforced queue concurrency, and completed-job file summaries.
+`0.1.0-alpha.5` includes bulk job registration, enforced queue concurrency, completed-job file summaries, and fast registration responses that start queued downloads in the background.
 
 Implemented:
 

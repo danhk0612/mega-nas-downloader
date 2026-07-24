@@ -136,12 +136,22 @@ label {
 }
 
 input,
+textarea,
 button {
-  min-height: 40px;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 8px 10px;
   font: inherit;
+}
+
+input,
+button {
+  min-height: 40px;
+}
+
+textarea {
+  min-height: 116px;
+  resize: vertical;
 }
 
 button {

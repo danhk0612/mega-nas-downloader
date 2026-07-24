@@ -12,6 +12,7 @@ services:
       DATA_DIR: /data
       TEMP_DIR: /data/temp
       MAX_CONCURRENT_DOWNLOADS: 2
+      MAX_VISIBLE_JOBS: 500
       AUTO_START_PENDING: "true"
       RETRY_ON_STARTUP: "false"
       MAX_RETRY_COUNT: 3

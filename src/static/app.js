@@ -186,7 +186,9 @@ async function refresh() {
 document.querySelector("#downloadForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = document.querySelector("#formMessage");
+  const submitButton = event.target.querySelector("button[type='submit']");
   message.textContent = "등록 중...";
+  submitButton.disabled = true;
   try {
     const result = await createJob({
       mega_url: document.querySelector("#megaUrl").value,
@@ -197,7 +199,9 @@ document.querySelector("#downloadForm").addEventListener("submit", async (event)
     message.textContent = `${result.created_count || 1}개 작업을 등록했습니다.`;
     refresh().catch(() => {});
   } catch (error) {
-    message.textContent = error.message;
+    message.textContent = `등록 실패: ${error.message}`;
+  } finally {
+    submitButton.disabled = false;
   }
 });
 

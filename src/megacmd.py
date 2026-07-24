@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 import subprocess
 import threading
 from pathlib import Path
@@ -10,16 +9,17 @@ from collections.abc import Callable
 
 from .db import add_log, utc_now
 
-MEGA_PUBLIC_RE = re.compile(r"^https://mega\.nz/(file|folder)/[^\s]+$", re.IGNORECASE)
-
-
 def validate_public_mega_url(url: str) -> str:
-    value = url.strip()
+    value = url.strip().strip("<>()[]{}\"'`,;")
     parsed = urlparse(value)
     if parsed.scheme != "https" or parsed.netloc.lower() != "mega.nz":
         raise ValueError("Only https://mega.nz public links are supported.")
-    if not MEGA_PUBLIC_RE.match(value):
-        raise ValueError("Only https://mega.nz/file/... and https://mega.nz/folder/... links are supported.")
+    path = parsed.path.strip("/")
+    fragment = parsed.fragment
+    modern = path.split("/", 1)[0].lower() in {"file", "folder"}
+    legacy = fragment.startswith("!") or fragment.startswith("F!")
+    if not modern and not legacy:
+        raise ValueError("Only MEGA public file/folder links are supported.")
     return value
 
 

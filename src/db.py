@@ -91,13 +91,21 @@ def add_log(db: sqlite3.Connection, job_id: int, level: str, message: str) -> No
     db.commit()
 
 
-def list_jobs(db: sqlite3.Connection, include_logs: bool = False) -> list[dict[str, Any]]:
+def list_jobs(
+    db: sqlite3.Connection,
+    include_logs: bool = False,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    limit_sql = "" if limit is None else "LIMIT ?"
+    params: tuple[int, ...] = () if limit is None else (limit,)
     rows = db.execute(
-        """
+        f"""
         SELECT *
           FROM jobs
          ORDER BY registered_at DESC, id DESC
-        """
+         {limit_sql}
+        """,
+        params,
     ).fetchall()
     jobs = [row_to_dict(row) for row in rows]
     if include_logs:

@@ -69,7 +69,7 @@ class AppHandler(BaseHTTPRequestHandler):
         if self.path == "/api/jobs":
             try:
                 payload = self._read_json()
-                job = JOBS.create_job(payload)
+                jobs = JOBS.create_jobs(payload)
             except ValueError as exc:
                 self._send_json(
                     {"error": {"code": "invalid_request", "message": str(exc)}},
@@ -82,7 +82,10 @@ class AppHandler(BaseHTTPRequestHandler):
                     HTTPStatus.INTERNAL_SERVER_ERROR,
                 )
                 return
-            self._send_json({"job": job}, HTTPStatus.CREATED)
+            response = {"jobs": jobs, "created_count": len(jobs)}
+            if len(jobs) == 1:
+                response["job"] = jobs[0]
+            self._send_json(response, HTTPStatus.CREATED)
             return
         self._send_json({"error": {"code": "not_found", "message": "Not found"}}, HTTPStatus.NOT_FOUND)
 
@@ -131,6 +134,7 @@ def public_settings() -> dict[str, Any]:
         "data_dir": CONFIG.data_dir,
         "temp_dir": CONFIG.temp_dir,
         "max_concurrent_downloads": CONFIG.max_concurrent_downloads,
+        "max_visible_jobs": CONFIG.max_visible_jobs,
         "auto_start_pending": CONFIG.auto_start_pending,
         "retry_on_startup": CONFIG.retry_on_startup,
         "max_retry_count": CONFIG.max_retry_count,

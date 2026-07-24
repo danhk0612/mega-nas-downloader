@@ -77,6 +77,11 @@ def build_status(config: Config, started_at: str) -> dict[str, Any]:
             "free": usage.free if usage else None,
         },
         "megacmd": _megacmd_version(),
+        "config": {
+            "max_concurrent_downloads": config.max_concurrent_downloads,
+            "max_visible_jobs": config.max_visible_jobs,
+            "poll_interval_ms": config.poll_interval_ms,
+        },
         "jobs": {
             "running": 0,
             "pending": 0,

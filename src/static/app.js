@@ -82,6 +82,8 @@ function setDiagnostics(status) {
     ["데이터 폴더", status.paths.data_dir],
     ["데이터 폴더 쓰기", status.paths.data_dir_writable.ok ? "가능" : status.paths.data_dir_writable.error],
     ["남은 용량", formatBytes(status.download_disk.free)],
+    ["동시 다운로드", status.config?.max_concurrent_downloads],
+    ["표시 작업 수", status.config?.max_visible_jobs],
   ];
 
   document.querySelector("#diagnostics").innerHTML = rows
@@ -186,13 +188,13 @@ document.querySelector("#downloadForm").addEventListener("submit", async (event)
   const message = document.querySelector("#formMessage");
   message.textContent = "등록 중...";
   try {
-    await createJob({
+    const result = await createJob({
       mega_url: document.querySelector("#megaUrl").value,
       name: document.querySelector("#jobName").value,
       subfolder: document.querySelector("#subfolder").value,
     });
     event.target.reset();
-    message.textContent = "작업을 등록했습니다.";
+    message.textContent = `${result.created_count || 1}개 작업을 등록했습니다.`;
     await refresh();
   } catch (error) {
     message.textContent = error.message;

@@ -2,12 +2,23 @@ from __future__ import annotations
 
 import subprocess
 import threading
+import re
+import time
 from pathlib import Path
+from collections.abc import Iterator
 from urllib.parse import urlparse
 
 from collections.abc import Callable
 
 from .db import add_log, utc_now
+
+PERCENT_RE = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d+)?)\s*%")
+SPEED_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(B|KB|KiB|MB|MiB|GB|GiB|TB|TiB)\s*/\s*s", re.IGNORECASE)
+TRANSFER_RE = re.compile(
+    r"(\d+(?:\.\d+)?)\s*(B|KB|KiB|MB|MiB|GB|GiB|TB|TiB)\s*(?:/|of)\s*"
+    r"(\d+(?:\.\d+)?)\s*(B|KB|KiB|MB|MiB|GB|GiB|TB|TiB)",
+    re.IGNORECASE,
+)
 
 def validate_public_mega_url(url: str) -> str:
     value = url.strip().strip("<>()[]{}\"'`,;")
@@ -60,6 +71,7 @@ class MegaDownloader:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                bufsize=1,
             )
             with self.lock:
                 self.db.execute("UPDATE jobs SET process_id = ? WHERE id = ?", (process.pid, job_id))
@@ -67,12 +79,13 @@ class MegaDownloader:
 
             recent_output: list[str] = []
             assert process.stdout is not None
-            for line in process.stdout:
+            for line in iter_process_output(process.stdout):
                 clean = line.strip()
                 if clean:
                     recent_output.append(clean)
                     if len(recent_output) > 20:
                         recent_output.pop(0)
+                    self._update_progress_from_output(job_id, clean)
 
             exit_code = process.wait()
             with self.lock:
@@ -135,6 +148,102 @@ class MegaDownloader:
             )
             self.db.commit()
             add_log(self.db, job_id, "error", message)
+
+    def _update_progress_from_output(self, job_id: int, line: str) -> None:
+        progress = parse_progress_percent(line)
+        if progress is None:
+            return
+
+        downloaded_bytes, total_bytes = parse_transfer_bytes(line)
+        speed_bytes = parse_speed_bytes_per_sec(line)
+        updates = ["progress = ?"]
+        params: list[float | int | None] = [progress]
+
+        if downloaded_bytes is not None:
+            updates.append("downloaded_bytes = ?")
+            params.append(downloaded_bytes)
+        if total_bytes is not None:
+            updates.append("total_bytes = ?")
+            params.append(total_bytes)
+        if speed_bytes is not None:
+            updates.append("speed_bytes_per_sec = ?")
+            params.append(speed_bytes)
+
+        params.append(job_id)
+        with self.lock:
+            self.db.execute(
+                f"UPDATE jobs SET {', '.join(updates)} WHERE id = ? AND status = 'running'",
+                tuple(params),
+            )
+            self.db.commit()
+
+
+def iter_process_output(stream) -> Iterator[str]:
+    buffer = ""
+    last_emit_at = time.monotonic()
+    last_emitted = ""
+    while True:
+        char = stream.read(1)
+        if char == "":
+            if buffer and buffer != last_emitted:
+                yield buffer
+            return
+        if char in "\r\n":
+            if buffer and buffer != last_emitted:
+                yield buffer
+                last_emitted = buffer
+                buffer = ""
+                last_emit_at = time.monotonic()
+            else:
+                buffer = ""
+            continue
+        buffer += char
+        now = time.monotonic()
+        if "%" in buffer and now - last_emit_at >= 1:
+            yield buffer
+            last_emitted = buffer
+            last_emit_at = now
+
+
+def parse_progress_percent(line: str) -> float | None:
+    matches = PERCENT_RE.findall(line)
+    if not matches:
+        return None
+    progress = float(matches[-1])
+    if progress < 0 or progress > 100:
+        return None
+    return progress
+
+
+def parse_transfer_bytes(line: str) -> tuple[int | None, int | None]:
+    match = TRANSFER_RE.search(line)
+    if match is None:
+        return (None, None)
+    downloaded = parse_size_to_bytes(match.group(1), match.group(2))
+    total = parse_size_to_bytes(match.group(3), match.group(4))
+    return (downloaded, total)
+
+
+def parse_speed_bytes_per_sec(line: str) -> int | None:
+    match = SPEED_RE.search(line)
+    if match is None:
+        return None
+    return parse_size_to_bytes(match.group(1), match.group(2))
+
+
+def parse_size_to_bytes(value: str, unit: str) -> int:
+    multipliers = {
+        "b": 1,
+        "kb": 1000,
+        "kib": 1024,
+        "mb": 1000**2,
+        "mib": 1024**2,
+        "gb": 1000**3,
+        "gib": 1024**3,
+        "tb": 1000**4,
+        "tib": 1024**4,
+    }
+    return int(float(value) * multipliers[unit.lower()])
 
 
 def snapshot_files(directory: Path) -> dict[Path, tuple[int, int]]:

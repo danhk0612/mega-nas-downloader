@@ -71,6 +71,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 payload = self._read_json()
                 jobs = JOBS.create_jobs(payload)
             except ValueError as exc:
+                self.log_message("POST /api/jobs rejected: %s", str(exc))
                 self._send_json(
                     {"error": {"code": "invalid_request", "message": str(exc)}},
                     HTTPStatus.BAD_REQUEST,

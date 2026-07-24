@@ -15,6 +15,7 @@ class JobService:
         self.config = config
         self.db = db
         self.lock = lock
+        self.scheduler_lock = threading.Lock()
         self.downloader = MegaDownloader(db, lock, on_job_finished=self.start_pending_jobs)
 
     def list_jobs(self) -> list[dict[str, Any]]:
@@ -62,10 +63,22 @@ class JobService:
                     jobs.append(job)
             self.db.commit()
 
-        self.start_pending_jobs()
+        self.schedule_pending_jobs()
         return jobs
 
+    def schedule_pending_jobs(self) -> None:
+        thread = threading.Thread(target=self.start_pending_jobs, daemon=True)
+        thread.start()
+
     def start_pending_jobs(self) -> None:
+        if not self.scheduler_lock.acquire(blocking=False):
+            return
+        try:
+            self._start_pending_jobs()
+        finally:
+            self.scheduler_lock.release()
+
+    def _start_pending_jobs(self) -> None:
         with self.lock:
             running = self.db.execute(
                 "SELECT COUNT(*) AS count FROM jobs WHERE status = 'running'"

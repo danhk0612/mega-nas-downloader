@@ -132,8 +132,8 @@ Current expected behavior:
 - Job is created in SQLite.
 - `mega-get` is executed.
 - Job becomes `completed` or `failed`.
+- Running jobs update `progress` when MEGAcmd reports percentages.
 - Completed jobs show `progress = 100`, downloaded bytes, and recent job logs.
-- Live transfer progress is not implemented yet.
 
 ## 9. Stop Or Restart
 

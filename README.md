@@ -14,7 +14,7 @@ Recommended license: **MIT License**. This project is a small personal utility a
 
 ## Status
 
-`0.1.0-alpha.3` includes the initial single-download job flow plus completed-job file summaries.
+`0.1.0-alpha.4` includes bulk job registration, enforced queue concurrency, and completed-job file summaries.
 
 Implemented:
 
@@ -28,6 +28,8 @@ Implemented:
 - MEGA public file/folder link validation
 - SQLite job storage
 - Download job creation API and UI form
+- Bulk URL registration from multi-line paste
+- Queue concurrency enforced by `MAX_CONCURRENT_DOWNLOADS`
 - Basic `mega-get` execution
 - Completed/failed status persistence
 - Basic per-job log storage
@@ -37,7 +39,7 @@ Implemented:
 Not implemented yet:
 
 - Live transfer progress tracking
-- Queue, cancel, retry
+- Cancel, retry
 - Authentication
 - Fully enforced duplicate policies beyond the default `rename` behavior
 
@@ -97,7 +99,8 @@ services:
 | `DOWNLOAD_DIR` | `/downloads` | Target directory for completed downloads |
 | `DATA_DIR` | `/data` | Persistent application data directory |
 | `TEMP_DIR` | `/data/temp` | Temporary work directory |
-| `MAX_CONCURRENT_DOWNLOADS` | `2` | Planned queue concurrency limit |
+| `MAX_CONCURRENT_DOWNLOADS` | `2` | Maximum number of downloads that can run at the same time |
+| `MAX_VISIBLE_JOBS` | `500` | Maximum number of recent jobs returned to the web UI |
 | `AUTO_START_PENDING` | `true` | Planned startup behavior for pending jobs |
 | `RETRY_ON_STARTUP` | `false` | Planned startup behavior for interrupted jobs |
 | `MAX_RETRY_COUNT` | `3` | Planned retry limit |

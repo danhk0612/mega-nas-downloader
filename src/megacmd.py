@@ -6,6 +6,8 @@ import threading
 from pathlib import Path
 from urllib.parse import urlparse
 
+from collections.abc import Callable
+
 from .db import add_log, utc_now
 
 MEGA_PUBLIC_RE = re.compile(r"^https://mega\.nz/(file|folder)/[^\s]+$", re.IGNORECASE)
@@ -31,32 +33,28 @@ def mask_mega_url(url: str) -> str:
 
 
 class MegaDownloader:
-    def __init__(self, db, lock: threading.Lock):
+    def __init__(self, db, lock: threading.Lock, on_job_finished: Callable[[], None] | None = None):
         self.db = db
         self.lock = lock
+        self.on_job_finished = on_job_finished
 
     def start_job(self, job_id: int) -> None:
         thread = threading.Thread(target=self._run_job, args=(job_id,), daemon=True)
         thread.start()
 
     def _run_job(self, job_id: int) -> None:
-        with self.lock:
-            row = self.db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
-            if row is None:
-                return
-            self.db.execute(
-                "UPDATE jobs SET status = 'running', started_at = ?, error_message = NULL WHERE id = ?",
-                (utc_now(), job_id),
-            )
-            self.db.commit()
-            add_log(self.db, job_id, "info", "Download started.")
-
-        target_dir = Path(row["target_dir"])
-        target_dir.mkdir(parents=True, exist_ok=True)
-        before_files = snapshot_files(target_dir)
-        command = ["mega-get", row["mega_url"], str(target_dir)]
-
         try:
+            with self.lock:
+                row = self.db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+                if row is None:
+                    return
+                add_log(self.db, job_id, "info", "Download started.")
+
+            target_dir = Path(row["target_dir"])
+            target_dir.mkdir(parents=True, exist_ok=True)
+            before_files = snapshot_files(target_dir)
+            command = ["mega-get", row["mega_url"], str(target_dir)]
+
             process = subprocess.Popen(
                 command,
                 stdout=subprocess.PIPE,
@@ -118,6 +116,9 @@ class MegaDownloader:
             self._fail_job(job_id, "mega-get executable not found.")
         except Exception as exc:
             self._fail_job(job_id, str(exc))
+        finally:
+            if self.on_job_finished is not None:
+                self.on_job_finished()
 
     def _fail_job(self, job_id: int, message: str) -> None:
         with self.lock:

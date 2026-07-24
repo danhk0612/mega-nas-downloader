@@ -14,7 +14,7 @@ Recommended license: **MIT License**. This project is a small personal utility a
 
 ## Status
 
-`0.1.0-alpha.5` includes bulk job registration, enforced queue concurrency, completed-job file summaries, and fast registration responses that start queued downloads in the background.
+`0.1.0-alpha.6` includes bulk job registration, enforced queue concurrency, completed-job file summaries, fast registration responses that start queued downloads in the background, and more tolerant MEGA URL extraction from pasted text.
 
 Implemented:
 
@@ -25,10 +25,10 @@ Implemented:
 - Basic responsive web UI
 - MEGAcmd availability check
 - Download and data volume write checks
-- MEGA public file/folder link validation
+- MEGA public file/folder link validation, including modern and legacy public link forms
 - SQLite job storage
 - Download job creation API and UI form
-- Bulk URL registration from multi-line paste
+- Bulk URL registration from multi-line paste or copied text that contains MEGA URLs
 - Queue concurrency enforced by `MAX_CONCURRENT_DOWNLOADS`
 - Basic `mega-get` execution
 - Completed/failed status persistence

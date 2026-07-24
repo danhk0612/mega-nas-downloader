@@ -28,6 +28,7 @@ class Config:
     data_dir: str
     temp_dir: str
     max_concurrent_downloads: int
+    max_visible_jobs: int
     auto_start_pending: bool
     retry_on_startup: bool
     max_retry_count: int
@@ -39,12 +40,14 @@ class Config:
 
 
 def load_config() -> Config:
+    max_concurrent_downloads = max(1, env_int("MAX_CONCURRENT_DOWNLOADS", 2))
     return Config(
         app_port=env_int("APP_PORT", 3000),
         download_dir=os.environ.get("DOWNLOAD_DIR", "/downloads"),
         data_dir=os.environ.get("DATA_DIR", "/data"),
         temp_dir=os.environ.get("TEMP_DIR", "/data/temp"),
-        max_concurrent_downloads=env_int("MAX_CONCURRENT_DOWNLOADS", 2),
+        max_concurrent_downloads=max_concurrent_downloads,
+        max_visible_jobs=max(1, env_int("MAX_VISIBLE_JOBS", 500)),
         auto_start_pending=env_bool("AUTO_START_PENDING", True),
         retry_on_startup=env_bool("RETRY_ON_STARTUP", False),
         max_retry_count=env_int("MAX_RETRY_COUNT", 3),

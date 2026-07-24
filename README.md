@@ -14,7 +14,7 @@ Recommended license: **MIT License**. This project is a small personal utility a
 
 ## Status
 
-`0.1.0-alpha.6` includes bulk job registration, enforced queue concurrency, completed-job file summaries, fast registration responses that start queued downloads in the background, and more tolerant MEGA URL extraction from pasted text.
+`0.1.0-alpha.7` includes bulk job registration, enforced queue concurrency, completed-job file summaries, fast registration responses that start queued downloads in the background, more tolerant MEGA URL extraction from pasted text, and live progress parsing from MEGAcmd output.
 
 Implemented:
 
@@ -31,6 +31,7 @@ Implemented:
 - Bulk URL registration from multi-line paste or copied text that contains MEGA URLs
 - Queue concurrency enforced by `MAX_CONCURRENT_DOWNLOADS`
 - Basic `mega-get` execution
+- Live progress parsing from `mega-get` output when MEGAcmd reports percentages
 - Completed/failed status persistence
 - Basic per-job log storage
 - Completed job file/size summary
@@ -38,7 +39,6 @@ Implemented:
 
 Not implemented yet:
 
-- Live transfer progress tracking
 - Cancel, retry
 - Authentication
 - Fully enforced duplicate policies beyond the default `rename` behavior

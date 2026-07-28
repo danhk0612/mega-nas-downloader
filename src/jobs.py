@@ -11,6 +11,7 @@ from .megacmd import MegaDownloader, mask_mega_url, validate_public_mega_url
 from .paths import resolve_download_target
 
 MEGA_URL_RE = re.compile(r"https://mega\.nz/[^\s<>()\[\]{}\"']+", re.IGNORECASE)
+VALID_DUPLICATE_POLICIES = {"rename", "skip", "overwrite"}
 
 
 class JobService:
@@ -33,9 +34,11 @@ class JobService:
         mega_urls = parse_mega_urls(payload)
         name = str(payload.get("name") or "").strip() or None
         subfolder = str(payload.get("subfolder") or "").strip()
-        duplicate_policy = self.config.default_duplicate_policy
-        if duplicate_policy != "rename":
-            raise ValueError("Only the 'rename' duplicate policy is implemented in this stage.")
+        duplicate_policy = str(
+            payload.get("duplicate_policy") or self.config.default_duplicate_policy
+        ).strip()
+        if duplicate_policy not in VALID_DUPLICATE_POLICIES:
+            raise ValueError("Duplicate policy must be one of: rename, skip, overwrite.")
 
         target_dir = resolve_download_target(self.config.download_dir, subfolder)
 
@@ -66,8 +69,89 @@ class JobService:
                     jobs.append(job)
             self.db.commit()
 
-        self.schedule_pending_jobs()
+        if self.config.auto_start_pending:
+            self.schedule_pending_jobs()
         return jobs
+
+    def cancel_job(self, job_id: int) -> dict[str, Any]:
+        should_stop_process = False
+        with self.lock:
+            job = get_job(self.db, job_id)
+            if job is None:
+                raise LookupError("Job not found.")
+            if job["status"] == "pending":
+                self.db.execute(
+                    """
+                    UPDATE jobs
+                       SET status = 'canceled',
+                           canceled_at = ?,
+                           completed_at = ?,
+                           process_id = NULL,
+                           error_message = NULL
+                     WHERE id = ?
+                    """,
+                    (utc_now(), utc_now(), job_id),
+                )
+                self.db.commit()
+                job = get_job(self.db, job_id)
+                assert job is not None
+                return job
+            if job["status"] != "running":
+                raise ValueError("Only pending or running jobs can be canceled.")
+            self.db.execute(
+                """
+                UPDATE jobs
+                   SET status = 'canceled',
+                       canceled_at = ?,
+                       completed_at = ?,
+                       process_id = NULL,
+                       error_message = NULL
+                 WHERE id = ? AND status = 'running'
+                """,
+                (utc_now(), utc_now(), job_id),
+            )
+            self.db.commit()
+            should_stop_process = True
+            job = get_job(self.db, job_id)
+            assert job is not None
+
+        if should_stop_process:
+            self.downloader.cancel_job(job_id)
+        return job
+
+    def retry_job(self, job_id: int) -> dict[str, Any]:
+        with self.lock:
+            job = get_job(self.db, job_id)
+            if job is None:
+                raise LookupError("Job not found.")
+            if job["status"] not in {"failed", "canceled", "completed"}:
+                raise ValueError("Only failed, canceled, or completed jobs can be retried.")
+            self.db.execute(
+                """
+                UPDATE jobs
+                   SET status = 'pending',
+                       progress = NULL,
+                       downloaded_bytes = NULL,
+                       total_bytes = NULL,
+                       speed_bytes_per_sec = NULL,
+                       eta_seconds = NULL,
+                       started_at = NULL,
+                       completed_at = NULL,
+                       canceled_at = NULL,
+                       error_message = NULL,
+                       process_id = NULL,
+                       retry_count = retry_count + 1
+                 WHERE id = ?
+                """,
+                (job_id,),
+            )
+            self.db.commit()
+            job = get_job(self.db, job_id)
+            assert job is not None
+
+        if self.config.auto_start_pending:
+            self.schedule_pending_jobs()
+        return job
 
     def schedule_pending_jobs(self) -> None:
         thread = threading.Thread(target=self.start_pending_jobs, daemon=True)

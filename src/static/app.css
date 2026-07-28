@@ -88,7 +88,7 @@ h2 {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -122,7 +122,7 @@ h2 {
 
 .download-form {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr auto;
+  grid-template-columns: 2fr 1fr 1fr 1fr auto;
   gap: 12px;
   align-items: end;
 }
@@ -137,6 +137,7 @@ label {
 
 input,
 textarea,
+select,
 button {
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -145,6 +146,7 @@ button {
 }
 
 input,
+select,
 button {
   min-height: 40px;
 }
@@ -162,7 +164,8 @@ button {
 }
 
 button:disabled,
-input:disabled {
+input:disabled,
+select:disabled {
   opacity: 0.55;
 }
 
@@ -205,6 +208,24 @@ input:disabled {
   color: var(--bad);
   margin: 10px 0 0;
   white-space: pre-wrap;
+}
+
+.job-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.job-actions button {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.job-actions .secondary {
+  background: transparent;
+  color: var(--accent);
 }
 
 .progress {

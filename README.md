@@ -14,7 +14,7 @@ Recommended license: **MIT License**. This project is a small personal utility a
 
 ## Status
 
-`0.1.0-alpha.7` includes bulk job registration, enforced queue concurrency, completed-job file summaries, fast registration responses that start queued downloads in the background, more tolerant MEGA URL extraction from pasted text, and live progress parsing from MEGAcmd output.
+`0.1.0-alpha.8` includes bulk job registration, enforced queue concurrency, completed-job file summaries, fast registration responses that start queued downloads in the background, more tolerant MEGA URL extraction from pasted text, live progress parsing from MEGAcmd output, cancel/retry actions, optional Basic authentication, and enforced duplicate handling.
 
 Implemented:
 
@@ -32,16 +32,15 @@ Implemented:
 - Queue concurrency enforced by `MAX_CONCURRENT_DOWNLOADS`
 - Basic `mega-get` execution
 - Live progress parsing from `mega-get` output when MEGAcmd reports percentages
+- Cancel for pending/running jobs
+- Retry for failed/canceled/completed jobs
+- Optional Basic authentication with `APP_USERNAME` and `APP_PASSWORD`
+- Duplicate policies: `rename`, `skip`, `overwrite`
+- Hidden temporary download folder before final file placement
 - Completed/failed status persistence
 - Basic per-job log storage
 - Completed job file/size summary
 - Recent job logs in the web UI
-
-Not implemented yet:
-
-- Cancel, retry
-- Authentication
-- Fully enforced duplicate policies beyond the default `rename` behavior
 
 ## Quick Start
 
@@ -87,8 +86,8 @@ services:
       PGID: 100
       UMASK: "022"
     volumes:
-      - /volume1/docker/mega-downloader/downloads:/downloads
-      - /volume1/docker/mega-downloader/data:/data
+      - /volume1/Download/_mega/file:/downloads
+      - /volume1/Download/_mega/data:/data
 ```
 
 ## Environment Variables
@@ -98,14 +97,16 @@ services:
 | `APP_PORT` | `3000` | Web server port inside the container |
 | `DOWNLOAD_DIR` | `/downloads` | Target directory for completed downloads |
 | `DATA_DIR` | `/data` | Persistent application data directory |
-| `TEMP_DIR` | `/data/temp` | Temporary work directory |
+| `TEMP_DIR` | `/data/temp` | Reserved temporary work directory |
 | `MAX_CONCURRENT_DOWNLOADS` | `2` | Maximum number of downloads that can run at the same time |
 | `MAX_VISIBLE_JOBS` | `500` | Maximum number of recent jobs returned to the web UI |
-| `AUTO_START_PENDING` | `true` | Planned startup behavior for pending jobs |
-| `RETRY_ON_STARTUP` | `false` | Planned startup behavior for interrupted jobs |
-| `MAX_RETRY_COUNT` | `3` | Planned retry limit |
-| `POLL_INTERVAL_MS` | `1000` | Planned UI/API polling interval |
-| `DEFAULT_DUPLICATE_POLICY` | `rename` | Duplicate file behavior. Only `rename` is implemented in the current stage |
+| `AUTO_START_PENDING` | `true` | Automatically start pending jobs after registration and app startup |
+| `RETRY_ON_STARTUP` | `false` | Reserved startup retry setting |
+| `MAX_RETRY_COUNT` | `3` | Reserved retry limit setting |
+| `POLL_INTERVAL_MS` | `1000` | Reserved polling interval setting |
+| `DEFAULT_DUPLICATE_POLICY` | `rename` | Duplicate file behavior: `rename`, `skip`, or `overwrite` |
+| `APP_USERNAME` | empty | Optional Basic auth username. Auth is disabled when both auth variables are empty |
+| `APP_PASSWORD` | empty | Optional Basic auth password. Auth is disabled when both auth variables are empty |
 | `LOG_LEVEL` | `info` | Application log level |
 | `TZ` | `Asia/Seoul` | Container timezone |
 | `PUID` | `1026` | Runtime user id |
@@ -120,7 +121,7 @@ Current Dockerfile support is intentionally limited to `amd64`, which matches th
 
 ## Security Notes
 
-- Do not expose this service publicly without authentication or a trusted reverse proxy in front of it.
+- Do not expose this service publicly without setting `APP_USERNAME`/`APP_PASSWORD` or placing a trusted reverse proxy in front of it.
 - Full MEGA links may contain access keys. Application logs should avoid printing full links when download jobs are implemented.
 - Host download paths must be mounted intentionally. User-provided subfolders will need to stay inside `DOWNLOAD_DIR`.
 

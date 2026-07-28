@@ -29,6 +29,17 @@ async function createJob(payload) {
   return body;
 }
 
+async function postJobAction(jobId, action) {
+  const response = await fetch(`/api/jobs/${jobId}/${action}`, {
+    method: "POST",
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error(body.error?.message || `job ${action} failed: ${response.status}`);
+  }
+  return body;
+}
+
 function formatBytes(value) {
   if (value === null || value === undefined) return "확인 불가";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -55,6 +66,15 @@ function formatStatus(status) {
     canceled: "취소됨",
   };
   return labels[status] || status;
+}
+
+function formatDuplicatePolicy(policy) {
+  const labels = {
+    rename: "이름 변경",
+    skip: "건너뛰기",
+    overwrite: "덮어쓰기",
+  };
+  return labels[policy] || policy || "-";
 }
 
 function formatProgress(job) {
@@ -111,6 +131,8 @@ function setJobs(jobs) {
             <span>용량 ${formatTransfer(job)}</span>
             <span>등록 ${formatDate(job.registered_at)}</span>
             <span>대상 ${escapeHtml(job.subfolder || "/")}</span>
+            <span>중복 ${formatDuplicatePolicy(job.duplicate_policy)}</span>
+            <span>재시도 ${job.retry_count || 0}</span>
           </div>
           ${
             job.progress !== null && job.progress !== undefined
@@ -122,11 +144,28 @@ function setJobs(jobs) {
               ? `<p class="job-error">${escapeHtml(job.error_message)}</p>`
               : ""
           }
+          ${renderJobActions(job)}
           ${renderLogs(job.logs || [])}
         </article>
       `,
     )
     .join("");
+}
+
+function renderJobActions(job) {
+  const actions = [];
+  if (job.status === "pending" || job.status === "running") {
+    actions.push(
+      `<button type="button" class="secondary" data-action="cancel" data-job-id="${job.id}">취소</button>`,
+    );
+  }
+  if (["failed", "canceled", "completed"].includes(job.status)) {
+    actions.push(
+      `<button type="button" data-action="retry" data-job-id="${job.id}">재다운로드</button>`,
+    );
+  }
+  if (!actions.length) return "";
+  return `<div class="job-actions">${actions.join("")}</div>`;
 }
 
 function renderLogs(logs) {
@@ -165,6 +204,7 @@ function setSummary(status) {
   document.querySelector("#pendingCount").textContent = status.jobs.pending;
   document.querySelector("#completedCount").textContent = status.jobs.completed;
   document.querySelector("#failedCount").textContent = status.jobs.failed;
+  document.querySelector("#canceledCount").textContent = status.jobs.canceled || 0;
 }
 
 async function refresh() {
@@ -194,6 +234,7 @@ document.querySelector("#downloadForm").addEventListener("submit", async (event)
       mega_url: document.querySelector("#megaUrl").value,
       name: document.querySelector("#jobName").value,
       subfolder: document.querySelector("#subfolder").value,
+      duplicate_policy: document.querySelector("#duplicatePolicy").value,
     });
     event.target.reset();
     message.textContent = `${result.created_count || 1}개 작업을 등록했습니다.`;
@@ -202,6 +243,22 @@ document.querySelector("#downloadForm").addEventListener("submit", async (event)
     message.textContent = `등록 실패: ${error.message}`;
   } finally {
     submitButton.disabled = false;
+  }
+});
+
+document.querySelector("#jobs").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action][data-job-id]");
+  if (!button) return;
+
+  const action = button.dataset.action;
+  const jobId = button.dataset.jobId;
+  button.disabled = true;
+  try {
+    await postJobAction(jobId, action);
+    await refresh();
+  } catch (error) {
+    button.textContent = action === "cancel" ? "취소 실패" : "재다운로드 실패";
+    button.title = error.message;
   }
 });
 

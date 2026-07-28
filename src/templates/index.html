@@ -33,6 +33,10 @@
           <span>실패</span>
           <strong id="failedCount">0</strong>
         </article>
+        <article>
+          <span>취소됨</span>
+          <strong id="canceledCount">0</strong>
+        </article>
       </section>
 
       <section class="panel">
@@ -49,6 +53,14 @@
           <label>
             하위 폴더
             <input id="subfolder" type="text" placeholder="선택 사항" />
+          </label>
+          <label>
+            중복 처리
+            <select id="duplicatePolicy">
+              <option value="rename">이름 변경</option>
+              <option value="skip">건너뛰기</option>
+              <option value="overwrite">덮어쓰기</option>
+            </select>
           </label>
           <button type="submit">등록</button>
         </form>

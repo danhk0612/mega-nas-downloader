@@ -81,12 +81,15 @@ def build_status(config: Config, started_at: str) -> dict[str, Any]:
             "max_concurrent_downloads": config.max_concurrent_downloads,
             "max_visible_jobs": config.max_visible_jobs,
             "poll_interval_ms": config.poll_interval_ms,
+            "default_duplicate_policy": config.default_duplicate_policy,
+            "auth_enabled": bool(config.app_username or config.app_password),
         },
         "jobs": {
             "running": 0,
             "pending": 0,
             "completed": 0,
             "failed": 0,
+            "canceled": 0,
             "total_speed": None,
         },
     }
@@ -97,6 +100,7 @@ def health(config: Config, started_at: str) -> tuple[int, dict[str, Any]]:
     checks = {
         "web": True,
         "data_dir_writable": bool(status["paths"]["data_dir_writable"]["ok"]),
+        "download_dir_writable": bool(status["paths"]["download_dir_writable"]["ok"]),
         "megacmd": bool(status["megacmd"]["ok"]),
     }
     status["checks"] = checks

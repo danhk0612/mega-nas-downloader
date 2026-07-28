@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import base64
+import hmac
 import threading
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -26,6 +28,8 @@ class AppHandler(BaseHTTPRequestHandler):
     server_version = "mega-nas-downloader/0.1"
 
     def do_GET(self) -> None:
+        if not self._require_auth():
+            return
         if self.path == "/" or self.path == "/index.html":
             self._send_file(ROOT / "templates" / "index.html", "text/html; charset=utf-8")
             return
@@ -66,6 +70,8 @@ class AppHandler(BaseHTTPRequestHandler):
         self._send_json({"error": {"code": "not_found", "message": "Not found"}}, HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
+        if not self._require_auth():
+            return
         if self.path == "/api/jobs":
             try:
                 payload = self._read_json()
@@ -88,6 +94,35 @@ class AppHandler(BaseHTTPRequestHandler):
                 response["job"] = jobs[0]
             self._send_json(response, HTTPStatus.CREATED)
             return
+        action = parse_job_action(self.path)
+        if action is not None:
+            job_id, action_name = action
+            try:
+                if action_name == "cancel":
+                    job = JOBS.cancel_job(job_id)
+                elif action_name == "retry":
+                    job = JOBS.retry_job(job_id)
+                else:
+                    self._send_json(
+                        {"error": {"code": "not_found", "message": "Not found"}},
+                        HTTPStatus.NOT_FOUND,
+                    )
+                    return
+            except LookupError as exc:
+                self._send_json(
+                    {"error": {"code": "not_found", "message": str(exc)}},
+                    HTTPStatus.NOT_FOUND,
+                )
+                return
+            except ValueError as exc:
+                self._send_json(
+                    {"error": {"code": "invalid_request", "message": str(exc)}},
+                    HTTPStatus.BAD_REQUEST,
+                )
+                return
+            response = {"job": job}
+            self._send_json(response)
+            return
         self._send_json({"error": {"code": "not_found", "message": "Not found"}}, HTTPStatus.NOT_FOUND)
 
     def log_message(self, format: str, *args: Any) -> None:
@@ -103,6 +138,7 @@ class AppHandler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
@@ -111,6 +147,7 @@ class AppHandler(BaseHTTPRequestHandler):
         self.send_response(int(status))
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
@@ -127,6 +164,51 @@ class AppHandler(BaseHTTPRequestHandler):
             raise ValueError("Request body must be a JSON object.")
         return payload
 
+    def _require_auth(self) -> bool:
+        if self.path == "/health":
+            return True
+        if not CONFIG.app_username and not CONFIG.app_password:
+            return True
+
+        header = self.headers.get("Authorization", "")
+        prefix = "Basic "
+        if not header.startswith(prefix):
+            self._send_auth_required()
+            return False
+
+        try:
+            decoded = base64.b64decode(header[len(prefix):], validate=True).decode("utf-8")
+        except Exception:
+            self._send_auth_required()
+            return False
+
+        username, separator, password = decoded.partition(":")
+        if not separator:
+            self._send_auth_required()
+            return False
+
+        username_ok = hmac.compare_digest(username, CONFIG.app_username)
+        password_ok = hmac.compare_digest(password, CONFIG.app_password)
+        if username_ok and password_ok:
+            return True
+
+        self._send_auth_required()
+        return False
+
+    def _send_auth_required(self) -> None:
+        body = json.dumps(
+            {"error": {"code": "unauthorized", "message": "Authentication required."}},
+            ensure_ascii=False,
+            indent=2,
+        ).encode("utf-8")
+        self.send_response(HTTPStatus.UNAUTHORIZED)
+        self.send_header("WWW-Authenticate", 'Basic realm="MEGA NAS Downloader"')
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
 
 def public_settings() -> dict[str, Any]:
     return {
@@ -141,6 +223,8 @@ def public_settings() -> dict[str, Any]:
         "max_retry_count": CONFIG.max_retry_count,
         "poll_interval_ms": CONFIG.poll_interval_ms,
         "default_duplicate_policy": CONFIG.default_duplicate_policy,
+        "duplicate_policies": ["rename", "skip", "overwrite"],
+        "auth_enabled": bool(CONFIG.app_username or CONFIG.app_password),
         "log_level": CONFIG.log_level,
         "timezone": CONFIG.timezone,
     }
@@ -156,7 +240,20 @@ def parse_job_id(path: str) -> int | None:
         return None
 
 
+def parse_job_action(path: str) -> tuple[int, str] | None:
+    parts = path.strip("/").split("/")
+    if len(parts) != 4 or parts[:2] != ["api", "jobs"]:
+        return None
+    try:
+        job_id = int(parts[2])
+    except ValueError:
+        return None
+    return (job_id, parts[3])
+
+
 def main() -> None:
+    if CONFIG.auto_start_pending:
+        JOBS.schedule_pending_jobs()
     server = ThreadingHTTPServer(("0.0.0.0", CONFIG.app_port), AppHandler)
     print(f"mega-nas-downloader listening on :{CONFIG.app_port}", flush=True)
     server.serve_forever()

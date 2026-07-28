@@ -4,6 +4,9 @@ import subprocess
 import threading
 import re
 import time
+import os
+import shutil
+import signal
 from pathlib import Path
 from collections.abc import Iterator
 from urllib.parse import urlparse
@@ -48,10 +51,20 @@ class MegaDownloader:
         self.db = db
         self.lock = lock
         self.on_job_finished = on_job_finished
+        self.processes: dict[int, subprocess.Popen[str]] = {}
+        self.processes_lock = threading.Lock()
 
     def start_job(self, job_id: int) -> None:
         thread = threading.Thread(target=self._run_job, args=(job_id,), daemon=True)
         thread.start()
+
+    def cancel_job(self, job_id: int) -> bool:
+        with self.processes_lock:
+            process = self.processes.get(job_id)
+        if process is None or process.poll() is not None:
+            return False
+        terminate_process(process)
+        return True
 
     def _run_job(self, job_id: int) -> None:
         try:
@@ -63,8 +76,8 @@ class MegaDownloader:
 
             target_dir = Path(row["target_dir"])
             target_dir.mkdir(parents=True, exist_ok=True)
-            before_files = snapshot_files(target_dir)
-            command = ["mega-get", row["mega_url"], str(target_dir)]
+            temp_dir = prepare_job_temp_dir(target_dir, job_id)
+            command = ["mega-get", row["mega_url"], str(temp_dir)]
 
             process = subprocess.Popen(
                 command,
@@ -72,7 +85,10 @@ class MegaDownloader:
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                start_new_session=True,
             )
+            with self.processes_lock:
+                self.processes[job_id] = process
             with self.lock:
                 self.db.execute("UPDATE jobs SET process_id = ? WHERE id = ?", (process.pid, job_id))
                 self.db.commit()
@@ -88,9 +104,20 @@ class MegaDownloader:
                     self._update_progress_from_output(job_id, clean)
 
             exit_code = process.wait()
+            with self.processes_lock:
+                self.processes.pop(job_id, None)
             with self.lock:
-                if exit_code == 0:
-                    changed_files = diff_files(before_files, snapshot_files(target_dir))
+                row = self.db.execute("SELECT status FROM jobs WHERE id = ?", (job_id,)).fetchone()
+                was_canceled = row is not None and row["status"] == "canceled"
+
+                if was_canceled:
+                    add_log(self.db, job_id, "info", "Download canceled.")
+                elif exit_code == 0:
+                    changed_files = finalize_temp_download(
+                        temp_dir,
+                        target_dir,
+                        str(row_duplicate_policy(self.db, job_id)),
+                    )
                     downloaded_bytes = sum(item["size"] for item in changed_files)
                     self.db.execute(
                         """
@@ -130,6 +157,8 @@ class MegaDownloader:
         except Exception as exc:
             self._fail_job(job_id, str(exc))
         finally:
+            with self.processes_lock:
+                self.processes.pop(job_id, None)
             if self.on_job_finished is not None:
                 self.on_job_finished()
 
@@ -176,6 +205,112 @@ class MegaDownloader:
                 tuple(params),
             )
             self.db.commit()
+
+
+def terminate_process(process: subprocess.Popen[str]) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    except Exception:
+        process.terminate()
+
+    try:
+        process.wait(timeout=8)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except Exception:
+            process.kill()
+
+
+def prepare_job_temp_dir(target_dir: Path, job_id: int) -> Path:
+    temp_root = target_dir / ".mega-nas-downloader-tmp"
+    temp_dir = temp_root / f"job-{job_id}"
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    return temp_dir
+
+
+def row_duplicate_policy(db, job_id: int) -> str:
+    row = db.execute("SELECT duplicate_policy FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    if row is None:
+        return "rename"
+    policy = row["duplicate_policy"]
+    return policy if policy in {"rename", "skip", "overwrite"} else "rename"
+
+
+def finalize_temp_download(
+    temp_dir: Path,
+    target_dir: Path,
+    duplicate_policy: str,
+) -> list[dict[str, int | str]]:
+    moved: list[dict[str, int | str]] = []
+    if not temp_dir.exists():
+        return moved
+
+    for source in sorted(temp_dir.iterdir(), key=lambda path: path.name):
+        destination = target_dir / source.name
+        final_destination = resolve_duplicate_destination(destination, duplicate_policy)
+        if final_destination is None:
+            remove_path(source)
+            continue
+        if duplicate_policy == "overwrite" and final_destination.exists():
+            remove_path(final_destination)
+        final_destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(final_destination))
+        moved.extend(snapshot_moved_files(final_destination, target_dir))
+
+    try:
+        temp_dir.rmdir()
+        temp_dir.parent.rmdir()
+    except OSError:
+        pass
+    return sorted(moved, key=lambda item: str(item["path"]))
+
+
+def resolve_duplicate_destination(destination: Path, duplicate_policy: str) -> Path | None:
+    if not destination.exists():
+        return destination
+    if duplicate_policy == "skip":
+        return None
+    if duplicate_policy == "overwrite":
+        return destination
+    return unique_destination(destination)
+
+
+def unique_destination(destination: Path) -> Path:
+    parent = destination.parent
+    stem = destination.stem
+    suffix = destination.suffix
+    for index in range(1, 10000):
+        candidate = parent / f"{stem} ({index}){suffix}"
+        if not candidate.exists():
+            return candidate
+    raise RuntimeError(f"Could not find available filename for {destination.name}")
+
+
+def remove_path(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink(missing_ok=True)
+
+
+def snapshot_moved_files(path: Path, root: Path) -> list[dict[str, int | str]]:
+    files: list[dict[str, int | str]] = []
+    if path.is_file():
+        stat = path.stat()
+        files.append({"path": path.relative_to(root).as_posix(), "size": stat.st_size})
+        return files
+    if not path.is_dir():
+        return files
+    for child in path.rglob("*"):
+        if child.is_file():
+            stat = child.stat()
+            files.append({"path": child.relative_to(root).as_posix(), "size": stat.st_size})
+    return files
 
 
 def iter_process_output(stream) -> Iterator[str]:

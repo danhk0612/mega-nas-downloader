@@ -37,6 +37,8 @@ class Config:
     log_level: str
     timezone: str
     database_path: str
+    app_username: str
+    app_password: str
 
 
 def load_config() -> Config:
@@ -56,4 +58,6 @@ def load_config() -> Config:
         log_level=os.environ.get("LOG_LEVEL", "info"),
         timezone=os.environ.get("TZ", "Asia/Seoul"),
         database_path=os.path.join(os.environ.get("DATA_DIR", "/data"), "app.sqlite3"),
+        app_username=os.environ.get("APP_USERNAME", "").strip(),
+        app_password=os.environ.get("APP_PASSWORD", ""),
     )

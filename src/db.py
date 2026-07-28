@@ -65,6 +65,7 @@ def init_db(db: sqlite3.Connection) -> None:
         );
         """
     )
+    _ensure_column(db, "jobs", "canceled_at", "TEXT")
     db.execute(
         """
         UPDATE jobs
@@ -77,6 +78,13 @@ def init_db(db: sqlite3.Connection) -> None:
         (utc_now(),),
     )
     db.commit()
+
+
+def _ensure_column(db: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column in columns:
+        return
+    db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
@@ -146,4 +154,5 @@ def job_counts(db: sqlite3.Connection) -> dict[str, int]:
         "pending": counts.get("pending", 0),
         "completed": counts.get("completed", 0),
         "failed": counts.get("failed", 0),
+        "canceled": counts.get("canceled", 0),
     }

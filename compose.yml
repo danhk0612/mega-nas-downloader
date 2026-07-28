@@ -1,6 +1,6 @@
 services:
   mega-downloader:
-    build: .
+    image: ghcr.io/danhk0612/mega-nas-downloader:1.0.0
     container_name: mega-downloader
     restart: unless-stopped
     ports:

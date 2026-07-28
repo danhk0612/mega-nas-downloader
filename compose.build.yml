@@ -1,0 +1,4 @@
+services:
+  mega-downloader:
+    build: .
+    image: mega-nas-downloader:local

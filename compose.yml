@@ -18,10 +18,12 @@ services:
       MAX_RETRY_COUNT: 3
       POLL_INTERVAL_MS: 1000
       DEFAULT_DUPLICATE_POLICY: rename
+      APP_USERNAME: ""
+      APP_PASSWORD: ""
       LOG_LEVEL: info
       PUID: 1026
       PGID: 100
       UMASK: "022"
     volumes:
-      - /volume1/docker/mega-downloader/downloads:/downloads
-      - /volume1/docker/mega-downloader/data:/data
+      - /volume1/Download/_mega/file:/downloads
+      - /volume1/Download/_mega/data:/data

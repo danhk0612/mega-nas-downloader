@@ -4,33 +4,24 @@ Personal web UI for downloading public MEGA links directly on a NAS with Docker.
 
 This project is not affiliated with or endorsed by MEGA.
 
-## Recommended Repository Description
-
-```text
-Personal web UI for downloading public MEGA links directly on a NAS with Docker.
-```
-
-Recommended license: **MIT License**. This project is a small personal utility and the MIT License keeps reuse, self-hosting, and contribution rules simple. MEGAcmd remains a separate upstream project with its own license terms.
-
 ## Status
 
-`0.1.0-alpha.8` includes bulk job registration, enforced queue concurrency, completed-job file summaries, fast registration responses that start queued downloads in the background, more tolerant MEGA URL extraction from pasted text, live progress parsing from MEGAcmd output, cancel/retry actions, optional Basic authentication, and enforced duplicate handling.
+Current release: `1.0.0`
+
+The `1.0.0` release is intended as the first stable self-hosted Docker release for Synology NAS use.
 
 Implemented:
 
-- Single Docker image skeleton
-- Minimal Python web server
-- `/health`
-- `/api/status`
-- Basic responsive web UI
+- Single Docker image for `linux/amd64`
+- Minimal Python web server and responsive web UI
+- `/health`, `/api/status`, and `/api/jobs`
 - MEGAcmd availability check
 - Download and data volume write checks
-- MEGA public file/folder link validation, including modern and legacy public link forms
 - SQLite job storage
-- Download job creation API and UI form
 - Bulk URL registration from multi-line paste or copied text that contains MEGA URLs
+- MEGA public file/folder link validation, including modern and legacy public link forms
 - Queue concurrency enforced by `MAX_CONCURRENT_DOWNLOADS`
-- Basic `mega-get` execution
+- `mega-get` execution through MEGAcmd
 - Live progress parsing from `mega-get` output when MEGAcmd reports percentages
 - Cancel for pending/running jobs
 - Retry for failed/canceled/completed jobs
@@ -42,6 +33,16 @@ Implemented:
 - Completed job file/size summary
 - Recent job logs in the web UI
 
+## Docker Image
+
+Published image:
+
+```text
+ghcr.io/danhk0612/mega-nas-downloader:1.0.0
+```
+
+Use `:1.0.0` for stable deployments. `:latest` follows the latest published build from the default branch.
+
 ## Quick Start
 
 Requirements:
@@ -50,7 +51,7 @@ Requirements:
 - x86-64 host for the current MEGAcmd package wiring
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 Open:
@@ -67,12 +68,12 @@ curl http://localhost:3010/health
 
 ## Synology Compose Example
 
-Edit the host paths in `compose.yml` before running in Synology Container Manager.
+The included `compose.yml` is prepared for the target Synology path layout:
 
 ```yaml
 services:
   mega-downloader:
-    build: .
+    image: ghcr.io/danhk0612/mega-nas-downloader:1.0.0
     container_name: mega-downloader
     restart: unless-stopped
     ports:
@@ -88,6 +89,24 @@ services:
     volumes:
       - /volume1/Download/_mega/file:/downloads
       - /volume1/Download/_mega/data:/data
+```
+
+For local NAS-only settings such as credentials, prefer `compose.override.yml` so `git pull` does not conflict with local edits:
+
+```yaml
+services:
+  mega-downloader:
+    environment:
+      APP_USERNAME: "your-user"
+      APP_PASSWORD: "your-password"
+```
+
+## Build From Source
+
+Normal deployments should use the published image. To build locally:
+
+```bash
+docker compose -f compose.yml -f compose.build.yml up -d --build
 ```
 
 ## Environment Variables
@@ -113,6 +132,28 @@ services:
 | `PGID` | `100` | Runtime group id |
 | `UMASK` | `022` | File creation mask |
 
+## Authentication
+
+Set `APP_USERNAME` and `APP_PASSWORD` to protect the web UI and API with Basic Auth.
+
+`/health` is intentionally left unauthenticated so Docker health checks continue to work.
+
+Check unauthenticated access:
+
+```bash
+curl -i http://127.0.0.1:3010/api/status
+```
+
+Expected result when auth is enabled: `401 Unauthorized`.
+
+Check authenticated access:
+
+```bash
+curl -i -u 'your-user:your-password' http://127.0.0.1:3010/api/status
+```
+
+Expected result: `200 OK`.
+
 ## MEGAcmd Packaging
 
 The Dockerfile downloads MEGAcmd from MEGA's official Debian 12 package URL during image build. The binary package is not stored in this repository.
@@ -122,8 +163,8 @@ Current Dockerfile support is intentionally limited to `amd64`, which matches th
 ## Security Notes
 
 - Do not expose this service publicly without setting `APP_USERNAME`/`APP_PASSWORD` or placing a trusted reverse proxy in front of it.
-- Full MEGA links may contain access keys. Application logs should avoid printing full links when download jobs are implemented.
-- Host download paths must be mounted intentionally. User-provided subfolders will need to stay inside `DOWNLOAD_DIR`.
+- Full MEGA links may contain access keys. Do not share private MEGA links in logs, issues, screenshots, or public support messages.
+- Host download paths must be mounted intentionally. User-provided subfolders are kept inside `DOWNLOAD_DIR`.
 
 ## License
 

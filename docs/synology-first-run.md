@@ -6,8 +6,8 @@ Assumptions:
 
 - Repository: `https://github.com/danhk0612/mega-nas-downloader.git`
 - Project path: `/volume1/docker/mega-nas-downloader`
-- Download path: `/volume1/docker/mega-downloader/downloads`
-- App data path: `/volume1/docker/mega-downloader/data`
+- Download path: `/volume1/Download/_mega/file`
+- App data path: `/volume1/Download/_mega/data`
 - Host port: `3010`
 - DSM user UID/GID example: `PUID=1026`, `PGID=100`
 
@@ -17,8 +17,8 @@ Adjust paths and IDs before running if your NAS uses different values.
 
 ```bash
 mkdir -p /volume1/docker
-mkdir -p /volume1/docker/mega-downloader/downloads
-mkdir -p /volume1/docker/mega-downloader/data
+mkdir -p /volume1/Download/_mega/file
+mkdir -p /volume1/Download/_mega/data
 ```
 
 Check your current user's UID/GID:
@@ -54,12 +54,24 @@ Open `compose.yml` and verify:
 ports:
   - "3010:3000"
 volumes:
-  - /volume1/docker/mega-downloader/downloads:/downloads
-  - /volume1/docker/mega-downloader/data:/data
+  - /volume1/Download/_mega/file:/downloads
+  - /volume1/Download/_mega/data:/data
 environment:
   PUID: 1026
   PGID: 100
+  APP_USERNAME: ""
+  APP_PASSWORD: ""
 ```
+
+To enable the built-in browser login prompt, set both values:
+
+```yaml
+environment:
+  APP_USERNAME: your-user
+  APP_PASSWORD: your-password
+```
+
+Leave both empty only when the service is limited to a trusted private network.
 
 ## 4. Build And Start
 
@@ -123,8 +135,8 @@ After creating a job, check:
 
 ```bash
 sudo docker compose logs --tail=100 mega-downloader
-ls -la /volume1/docker/mega-downloader/downloads
-ls -la /volume1/docker/mega-downloader/data
+ls -la /volume1/Download/_mega/file
+ls -la /volume1/Download/_mega/data
 ```
 
 Current expected behavior:
@@ -133,6 +145,9 @@ Current expected behavior:
 - `mega-get` is executed.
 - Job becomes `completed` or `failed`.
 - Running jobs update `progress` when MEGAcmd reports percentages.
+- Pending/running jobs can be canceled.
+- Failed/canceled/completed jobs can be retried.
+- Duplicate handling follows the selected policy: `rename`, `skip`, or `overwrite`.
 - Completed jobs show `progress = 100`, downloaded bytes, and recent job logs.
 
 ## 9. Stop Or Restart
